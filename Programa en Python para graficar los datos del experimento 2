@@ -1,0 +1,52 @@
+# ==========================================
+# EXPERIMENTO 2
+# CARTÓN NEGRO -> CARTÓN BLANCO
+# ==========================================
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Cargar los datos
+data = pd.read_csv('Data.csv')
+
+# Extraer las variables
+t = data['t']
+value = data['value']
+
+# Crear la figura
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# ==========================================
+# Gráfica de Value
+# ==========================================
+
+ax.plot(
+    t,
+    value,
+    linewidth=2,
+    label='Value'
+)
+
+# ==========================================
+# Línea de transición
+# ==========================================
+
+ax.axvline(
+    x=8,
+    linestyle='--',
+    linewidth=1.5,
+    label='Cambio de negro a blanco'
+)
+
+# ==========================================
+# Título
+# ==========================================
+
+ax.set_title(
+    'Respuesta HSV durante el cambio de cartón negro a blanco',
+    fontsize=15,
+    fontweight='bold',
+    color='black'
+)
+
+# ================================
