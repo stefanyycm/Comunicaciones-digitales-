@@ -1,0 +1,67 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+data = pd.read_csv('Data.csv')
+
+t = data['t']
+luma = data['Luma']
+luminance = data['Luminance']
+
+fig, ax1 = plt.subplots(figsize=(10, 6))
+
+# Luminancia - azul
+ax1.plot(
+    t,
+    luminance,
+    linewidth=1.8,
+    color='#0072BD',
+    label='Luminancia'
+)
+
+ax1.set_xlabel(
+    'Tiempo (t) [s]',
+    fontsize=11,
+    fontweight='bold'
+)
+
+ax1.set_ylabel(
+    'Luminancia',
+    fontsize=11,
+    fontweight='bold',
+    color='#0072BD'
+)
+
+ax1.tick_params(axis='y', labelcolor='#0072BD')
+
+# Luma - naranja
+ax2 = ax1.twinx()
+
+ax2.plot(
+    t,
+    luma,
+    linewidth=1.8,
+    color='#D95319',
+    label='Luma'
+)
+
+ax2.set_ylabel(
+    'Luma',
+    fontsize=11,
+    fontweight='bold',
+    color='#D95319'
+)
+
+ax2.tick_params(axis='y', labelcolor='#D95319')
+
+# Título
+ax1.set_title(
+    'Evolución de Luminancia y Luma en el Tiempo',
+    fontsize=13,
+    fontweight='bold'
+)
+
+ax1.grid(True, alpha=0.3)
+
+# Leyenda
+lines1, labels1 = ax1.get_legend_handles_labels()
+lines2, labels2 = ax2
