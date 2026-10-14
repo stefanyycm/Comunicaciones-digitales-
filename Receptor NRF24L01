@@ -1,0 +1,217 @@
+# main.py - RECEPTOR NRF24L01
+from machine import Pin, SPI, I2C
+import time
+import ssd1306
+from nrf24 import NRF24, RATES, POWER_DBM
+
+# Configuración de radio
+RF_CHANNEL = 40
+RF_POWER = 3
+RF_RATE = 1
+STEP = 4
+ACK = True
+DATA_SIZE = 28
+
+# Pantalla OLED
+display_bus = I2C(0, sda=Pin(4), scl=Pin(5), freq=400000)
+screen = ssd1306.SSD1306_I2C(128, 64, display_bus)
+
+# Comunicación SPI
+radio_spi = SPI(
+    0, baudrate=1_000_000, polarity=0, phase=0,
+    sck=Pin(18), mosi=Pin(19), miso=Pin(16)
+)
+
+rf = NRF24(
+    radio_spi,
+    csn=17,
+    ce=20,
+    channel=RF_CHANNEL,
+    power=RF_POWER,
+    rate=RF_RATE,
+    auto_ack=ACK
+)
+
+key_channel = Pin(10, Pin.IN, Pin.PULL_UP)
+key_power = Pin(11, Pin.IN, Pin.PULL_UP)
+
+led_good = Pin(21, Pin.OUT)
+led_bad = Pin(22, Pin.OUT)
+
+buffer = bytearray()
+next_sequence = 0
+good_messages = 0
+bad_packets = 0
+shown_text = ""
+
+
+def was_pressed(button):
+    if button.value() != 0:
+        return False
+
+    time.sleep_ms(30)
+
+    if button.value() != 0:
+        return False
+
+    while button.value() == 0:
+        time.sleep_ms(10)
+
+    return True
+
+
+def refresh():
+    screen.fill(0)
+
+    screen.text("RX CH %d" % rf.channel, 0, 0)
+    screen.text("%d MHz" % rf.freq_mhz, 0, 10)
+
+    screen.text(
+        "%s %d dBm" %
+        (RATES[rf.rate], POWER_DBM[rf.power]),
+        0,
+        20
+    )
+
+    screen.text(shown_text[:16], 0, 30)
+    screen.text(shown_text[16:32], 0, 40)
+
+    screen.text(
+        "OK:%d ERR:%d" %
+        (good_messages, bad_packets),
+        0,
+        50
+    )
+
+    screen.show()
+
+
+def process(packet):
+    global buffer
+    global next_sequence
+    global bad_packets
+
+    if len(packet) < 4:
+        bad_packets += 1
+        return None
+
+    message_id = packet[0]
+    sequence = packet[1]
+    total = packet[2]
+    length = packet[3]
+
+    if total == 0 or sequence >= total or length > DATA_SIZE:
+        bad_packets += 1
+        return None
+
+    part = packet[4:4 + length]
+
+    if sequence == 0:
+        buffer = bytearray(part)
+        next_sequence = 1
+
+    elif sequence == next_sequence:
+        buffer.extend(part)
+        next_sequence += 1
+
+    else:
+        buffer = bytearray()
+        next_sequence = 0
+        bad_packets += 1
+        return None
+
+    if sequence == total - 1:
+        next_sequence = 0
+
+        try:
+            return bytes(buffer).decode()
+
+        except Exception:
+            bad_packets += 1
+            return None
+
+    return None
+
+
+screen.fill(0)
+screen.text("Lab Comunicacion", 0, 8)
+screen.text("Digital Inalamb.", 0, 20)
+screen.text("GFSK - NRF24L01", 0, 32)
+screen.text("Receptor", 0, 48)
+screen.show()
+
+print(
+    "Receptor listo | canal",
+    rf.channel,
+    "|",
+    RATES[rf.rate],
+    "|",
+    POWER_DBM[rf.power],
+    "dBm"
+)
+
+time.sleep(2)
+
+rf.start_listening()
+refresh()
+
+
+while True:
+
+    if was_pressed(key_channel):
+
+        rf.stop_listening()
+
+        result = rf.set_channel(
+            (rf.channel + STEP) % 126
+        )
+
+        rf.start_listening()
+
+        print("RF_CH =", result)
+        refresh()
+
+    if was_pressed(key_power):
+
+        rf.stop_listening()
+
+        result = rf.set_power(
+            (rf.power + 1) & 3
+        )
+
+        rf.start_listening()
+
+        print("RF_SETUP = 0x%02X" % result)
+        refresh()
+
+    if rf.any():
+
+        packet = rf.recv()
+        previous_errors = bad_packets
+
+        message = process(packet)
+
+        if message is not None:
+
+            good_messages += 1
+            shown_text = message
+
+            print("Recibido:", message)
+
+            led_good.on()
+            refresh()
+
+            time.sleep_ms(100)
+
+            led_good.off()
+
+        elif bad_packets != previous_errors:
+
+            led_bad.on()
+            refresh()
+
+            time.sleep_ms(100)
+
+            led_bad.off()
+
+    time.sleep_ms(2)
